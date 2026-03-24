@@ -12,7 +12,37 @@ DKMS_MODULE_VERSION="${2}"
 
 . kernel-version_get.sh
 
+is_ostree_system() {
+  command -v rpm-ostree >/dev/null 2>&1 && [ -e /run/ostree-booted ]
+}
+
+ensure_usr_src_writable() {
+  # Mutable systems should already allow writes to /usr/src.
+  if [ -w /usr/src ] || { [ ! -e /usr/src ] && [ -w /usr ]; }; then
+    return
+  fi
+
+  if ! is_ostree_system; then
+    echo "/usr/src is not writable and no rpm-ostree system was detected. Aborting."
+    exit 3
+  fi
+
+  echo "Detected rpm-ostree immutable root. Enabling temporary /usr overlay."
+  if ! rpm-ostree usroverlay; then
+    echo "Could not enable /usr overlay via 'rpm-ostree usroverlay'. Aborting."
+    exit 3
+  fi
+
+  mkdir -p /usr/src
+  if [ ! -w /usr/src ]; then
+    echo "Failed to make /usr/src writable after enabling overlay. Aborting."
+    exit 3
+  fi
+}
+
 # check OS prerequisites --------------------------------------------------------------------------
+
+ensure_usr_src_writable
 
 # perform OS-specific preparation steps
 if grep -qE "^ID(_LIKE)?=debian" /etc/os-release; then
@@ -40,7 +70,17 @@ if grep -qE "^ID(_LIKE)?=debian" /etc/os-release; then
 elif grep -q "^ID=arch" /etc/os-release; then
   pacman -S pahole dkms base-devel linux-headers
 elif grep -q "^ID=fedora" /etc/os-release; then
-  dnf install dwarves dkms kernel-devel kernel-headers  
+  if is_ostree_system; then
+    if ! command -v dkms >/dev/null 2>&1 || ! command -v make >/dev/null 2>&1 || ! command -v gcc >/dev/null 2>&1 || [ ! -d "/usr/src/kernels/${KERNEL_VERSION}" ]; then
+      echo "Missing build prerequisites on rpm-ostree system."
+      echo "Install them with:"
+      echo "  sudo rpm-ostree install dkms gcc make kernel-devel kernel-headers dwarves"
+      echo "Then reboot and run this setup again."
+      exit 3
+    fi
+  else
+    dnf install dwarves dkms kernel-devel kernel-headers
+  fi
 else
   echo "Auto-installing kernel headers not (yet) supported for your Linux distro. You might want to modify the distro-specific commands."
 fi

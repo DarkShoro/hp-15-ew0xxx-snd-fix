@@ -12,6 +12,13 @@ HP laptop models from 2022 onwards seem to be quite compatible with Linux, excep
 
 It might also work with other HP models. Hardware prerequisites are the Cirrus Logic smart amplifier chipset CSC3551 and the Realtek HDA codec ALC245. Please leave any comments or commit any code to make it work for additional models.
 
+On rpm-ostree systems (e.g. Bazzite, Silverblue, Kinoite), the setup now auto-enables a temporary `/usr` overlay via `rpm-ostree usroverlay` when needed, so DKMS sources can be written to `/usr/src` on otherwise immutable roots.
+If required build tools are missing on those systems, install them with:
+```
+sudo rpm-ostree install dkms gcc make kernel-devel kernel-headers dwarves
+```
+Then reboot once and run the setup script again.
+
 The `--auto` flag was added recently, which automatically inserts the audio subsystem ID of the current machine. See below for more info.
 
 **These modules come without any warranty, so installing and testing them on your own hardware is at your own risk. This is especially true for the snd-hda-scodec-cs35l41 module as it initializes the Cirrus Logic amplifiers based on some assumptions for lack of proper BIOS/UEFI APCI entries on the HP laptops in question.**
